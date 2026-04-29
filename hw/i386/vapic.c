@@ -27,6 +27,7 @@
 #include "migration/vmstate.h"
 #include "qom/object.h"
 #include "qemu/error-report.h"
+#include "trace.h"
 
 #define VAPIC_IO_PORT           0x7e
 
@@ -454,10 +455,20 @@ static void do_patch_instruction(CPUState *cs, run_on_cpu_data data)
             instr_len);
         goto out;
     }
-    if (cpu_memory_rw_debug(cs, ip, instr, instr_len, 0) < 0
-        || memcmp(instr, info->instr, instr_len) != 0) {
+    if (cpu_memory_rw_debug(cs, ip, instr, instr_len, 0) < 0) {
         goto out;
     }
+
+    trace_kvmvapic_patch_read((uint64_t)ip, info->instr[0], instr[0],
+                              instr_len);
+
+    if (memcmp(instr, info->instr, instr_len) != 0) {
+        trace_kvmvapic_patch_skip_changed((uint64_t)ip, info->instr[0],
+                                          instr[0], instr_len);
+        goto out;
+    }
+
+    trace_kvmvapic_patch_apply((uint64_t)ip, instr[0], instr_len);
 
     switch (instr[0]) {
     case 0x89: /* mov r32 to r/m32 */
@@ -491,6 +502,7 @@ static void do_patch_instruction(CPUState *cs, run_on_cpu_data data)
         patch_call(x86_cpu, ip + 1, handlers->get_tpr_stack);
         break;
     default:
+        trace_kvmvapic_patch_unexpected((uint64_t)ip, instr[0], instr_len);
         warn_report_once("kvmvapic: unexpected TPR instruction opcode 0x%02x "
                          "while patching; leaving instruction unchanged",
                          instr[0]);
@@ -527,6 +539,8 @@ static void patch_instruction(VAPICROMState *s, X86CPU *cpu, target_ulong ip,
     info->ip = ip;
     info->instr_len = instr_len;
     memcpy(info->instr, instr_bytes, instr_len);
+    trace_kvmvapic_patch_queued((uint64_t)ip, instr_bytes[0], instr_len);
+
     async_safe_run_on_cpu(cs, do_patch_instruction, RUN_ON_CPU_HOST_PTR(info));
 }
 
@@ -540,6 +554,9 @@ void vapic_report_tpr_access(DeviceState *dev, CPUState *cs, target_ulong ip,
     uint8_t instr[TPR_INSTR_MAX_LENGTH];
 
     cpu_synchronize_state(cs);
+
+    trace_kvmvapic_tpr_report(cs->cpu_index, (uint64_t)ip, access,
+                              s->state);
 
     if (evaluate_tpr_instruction(s, cpu, &ip, instr, &instr_len, access) < 0) {
         if (s->state == VAPIC_ACTIVE) {

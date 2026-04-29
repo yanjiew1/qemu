@@ -1,5 +1,13 @@
 # See docs/devel/tracing.rst for syntax documentation.
 
+# kvmvapic
+kvmvapic_tpr_report(int cpu_index, uint64_t ip, int access, uint32_t state) "cpu=%d ip=0x%" PRIx64 " access=%d state=%u"
+kvmvapic_patch_queued(uint64_t ip, uint8_t opcode, size_t instr_len) "ip=0x%" PRIx64 " opcode=0x%02x len=%zu"
+kvmvapic_patch_read(uint64_t ip, uint8_t saved_opcode, uint8_t current_opcode, size_t instr_len) "ip=0x%" PRIx64 " saved=0x%02x current=0x%02x len=%zu"
+kvmvapic_patch_skip_changed(uint64_t ip, uint8_t saved_opcode, uint8_t current_opcode, size_t instr_len) "ip=0x%" PRIx64 " saved=0x%02x current=0x%02x len=%zu"
+kvmvapic_patch_apply(uint64_t ip, uint8_t opcode, size_t instr_len) "ip=0x%" PRIx64 " opcode=0x%02x len=%zu"
+kvmvapic_patch_unexpected(uint64_t ip, uint8_t opcode, size_t instr_len) "ip=0x%" PRIx64 " opcode=0x%02x len=%zu"
+
 # x86-iommu.c
 x86_iommu_iec_notify(bool global, uint32_t index, uint32_t mask) "Notify IEC invalidation: global=%d index=%" PRIu32 " mask=%" PRIu32
 
